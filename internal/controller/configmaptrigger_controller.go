@@ -131,7 +131,7 @@ func (r *ConfigmapTriggerReconciler) findObjectsForConfigMap(ctx context.Context
 		log.Info("found ConfigmapTrigger for ConfigMap", "configmap", obj.GetName(), "trigger", trigger.GetName())
 		requests[i] = reconcile.Request{
 			NamespacedName: client.ObjectKey{
-				Name:      trigger.Spec.DeploymentName,
+				Name:      trigger.GetName(),
 				Namespace: trigger.GetNamespace(),
 			},
 		}

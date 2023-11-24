@@ -9,5 +9,5 @@ metadata:
     app.kubernetes.io/created-by: configmap-trigger-k8s-operator
   name: configmaptrigger-sample
 spec:
-  configmapName: abc
-  deploymentName: def
+  configmapName: the-configmap
+  deploymentName: the-deployment
