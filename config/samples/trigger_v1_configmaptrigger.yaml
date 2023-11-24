@@ -9,4 +9,5 @@ metadata:
     app.kubernetes.io/created-by: configmap-trigger-k8s-operator
   name: configmaptrigger-sample
 spec:
-  # TODO(user): Add fields here
+  configmapName: abc
+  deploymentName: def

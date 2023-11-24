@@ -25,17 +25,13 @@ import (
 
 // ConfigmapTriggerSpec defines the desired state of ConfigmapTrigger
 type ConfigmapTriggerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of ConfigmapTrigger. Edit configmaptrigger_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	ConfigmapName  string `json:"configmapName"`
+	DeploymentName string `json:"deploymentName"`
 }
 
 // ConfigmapTriggerStatus defines the observed state of ConfigmapTrigger
 type ConfigmapTriggerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	LastTriggered *metav1.Time `json:"lastTriggered"`
 }
 
 //+kubebuilder:object:root=true
