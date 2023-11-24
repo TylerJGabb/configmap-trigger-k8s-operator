@@ -1,0 +1,27 @@
+# permissions for end users to view configmaptriggers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: configmaptrigger-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: configmap-trigger-k8s-operator
+    app.kubernetes.io/part-of: configmap-trigger-k8s-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: configmaptrigger-viewer-role
+rules:
+- apiGroups:
+  - trigger.tg.io
+  resources:
+  - configmaptriggers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - trigger.tg.io
+  resources:
+  - configmaptriggers/status
+  verbs:
+  - get

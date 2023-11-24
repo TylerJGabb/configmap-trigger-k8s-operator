@@ -1,0 +1,12 @@
+apiVersion: trigger.tg.io/v1
+kind: ConfigmapTrigger
+metadata:
+  labels:
+    app.kubernetes.io/name: configmaptrigger
+    app.kubernetes.io/instance: configmaptrigger-sample
+    app.kubernetes.io/part-of: configmap-trigger-k8s-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: configmap-trigger-k8s-operator
+  name: configmaptrigger-sample
+spec:
+  # TODO(user): Add fields here
