@@ -21,6 +21,7 @@ import (
 
 	triggerv1 "tylerjgabb/configmap-trigger-k8s-operator/api/v1"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +35,8 @@ import (
 )
 
 var (
-	CONFIGMAP_FIELD = ".spec.configmapName"
+	CONFIGMAP_FIELD  = ".spec.configmapName"
+	DEPLOYMENT_FIELD = ".spec.deploymentName"
 )
 
 // ConfigmapTriggerReconciler reconciles a ConfigmapTrigger object
@@ -64,7 +66,9 @@ func (r *ConfigmapTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	log := log.FromContext(ctx)
 	var configmapTrigger triggerv1.ConfigmapTrigger
 	if err := r.Get(ctx, req.NamespacedName, &configmapTrigger); err != nil {
-		log.Error(err, "unable to fetch ConfigmapTrigger")
+		if client.IgnoreNotFound(err) != nil {
+			log.Error(err, "unable to fetch ConfijgmapTrigger")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -74,12 +78,18 @@ func (r *ConfigmapTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		configmapName := configmapTrigger.Spec.ConfigmapName
 		foundConfigmap := &corev1.ConfigMap{}
 		if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: configmapName}, foundConfigmap); err != nil {
-			log.Error(err, "unable to fetch Configmap")
-			return ctrl.Result{}, err
+			if client.IgnoreNotFound(err) != nil {
+				log.Error(err, "unable to fetch Configmap")
+			}
+			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 		configmapVersion = foundConfigmap.ResourceVersion
 	}
-	log.Info("Configmap Found", "configmapVersion", configmapVersion)
+	log.Info("Configmap Found",
+		"configmapVersion", configmapVersion,
+		"configmapName", configmapTrigger.Spec.ConfigmapName,
+		"deploymentName", configmapTrigger.Spec.DeploymentName,
+	)
 	return ctrl.Result{}, nil
 }
 
@@ -102,12 +112,29 @@ func (r *ConfigmapTriggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &triggerv1.ConfigmapTrigger{}, DEPLOYMENT_FIELD,
+		func(rawObj client.Object) []string {
+			configmapTrigger := rawObj.(*triggerv1.ConfigmapTrigger)
+			if configmapTrigger.Spec.DeploymentName == "" {
+				return nil
+			}
+			return []string{configmapTrigger.Spec.DeploymentName}
+		},
+	); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&triggerv1.ConfigmapTrigger{}).
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForConfigMap),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		Watches(
+			&appsv1.Deployment{},
+			handler.EnqueueRequestsFromMapFunc(r.findObjectsForDeployment),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		Complete(r)
 }
@@ -128,7 +155,37 @@ func (r *ConfigmapTriggerReconciler) findObjectsForConfigMap(ctx context.Context
 	}
 	requests := make([]reconcile.Request, len(associatedTriggers.Items))
 	for i, trigger := range associatedTriggers.Items {
-		log.Info("found ConfigmapTrigger for ConfigMap", "configmap", obj.GetName(), "trigger", trigger.GetName())
+		log.Info("found ConfigmapTrigger for ConfigMap", "generation", obj.GetGeneration(), "configmap", obj.GetName(), "trigger", trigger.GetName())
+		requests[i] = reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Name:      trigger.GetName(),
+				Namespace: trigger.GetNamespace(),
+			},
+		}
+	}
+	return requests
+}
+
+var callCount = 0
+
+func (r *ConfigmapTriggerReconciler) findObjectsForDeployment(ctx context.Context, obj client.Object) []reconcile.Request {
+	// Find all ConfigmapTriggers that reference this configmap
+	// For each ConfigmapTrigger, return a reconcile.Request for the Deployment it references
+	callCount++
+	log := log.FromContext(ctx, "callCount", callCount)
+	associatedTriggers := &triggerv1.ConfigmapTriggerList{}
+	listOps := &client.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector(DEPLOYMENT_FIELD, obj.GetName()),
+		Namespace:     obj.GetNamespace(),
+	}
+	err := r.List(ctx, associatedTriggers, listOps)
+	if err != nil {
+		log.Error(err, "unable to list ConfigmapTriggers for Deployment", "deployment", obj.GetName())
+		return []reconcile.Request{}
+	}
+	requests := make([]reconcile.Request, len(associatedTriggers.Items))
+	for i, trigger := range associatedTriggers.Items {
+		log.Info("found ConfigmapTrigger for Deployment", "generation", obj.GetGeneration(), "deployment", obj.GetName(), "trigger", trigger.GetName())
 		requests[i] = reconcile.Request{
 			NamespacedName: client.ObjectKey{
 				Name:      trigger.GetName(),
